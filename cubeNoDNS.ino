@@ -21,56 +21,6 @@ String serialNumber, ssid, password;
 uint8_t verified;
 uint16_t verificationCode;
 
-// *** change these strings to use const char str[] PROGMEM = R"=====(<html></html>)====="; to save dynamic memory
-/*const String DEFAULT_HTML = ""
-"<!DOCTYPE html>"
-"<html>"
-  "<form action=\"/\" method=\"POST\">"
-    "<input type=\"number\" name=\"serialnumber\" id=\"serialnumber\" maxlength=\"16\">"
-    "<label for=\"serialnumber\">Serial Number</label>"
-    "<br><input type=\"submit\" value=\"Submit\">"
-  "</form>"
-"</html>";*/
-const char DEFAULT_HTML[] = R"=====(
-<!DOCTYPE html>
-<html>
-  <form action="/" method="POST">
-    <input type="number" name="serialnumber" id="serialnumber" maxlength="16">
-    <label for="serialnumber">Serial Number</label>
-    <br>
-    <input type="submit" value="Submit">
-  </form>
-</html>
-)=====";
-
-const String SSID_HTML = ""
-"<!DOCTYPE html>"
-"<html>"
-  "<form action=\"/\" method=\"POST\">"
-    "<input type=\"text\" name=\"ssid\" id=\"ssid\" maxlength=\"32\">"
-    "<label for=\"password\">Network Name (SSID)</label>"
-    "<br><input type=\"submit\" value=\"Submit\">"
-  "</form>"
-"</html>";
-
-const String PASSWORD_HTML = ""
-"<!DOCTYPE html>"
-"<html>"
-  "<form action=\"/\" method=\"POST\">"
-    "<input type=\"password\" name=\"password\" id=\"password\" maxlength=\"64\">"
-    "<label for=\"password\">Password</label>"
-    "<br><input type=\"submit\" value=\"Submit\">"
-  "</form>"
-"</html>";
-
-const String VERIFY_HTML = ""
-"<!DOCTYPE html>"
-"<html>"
-  "<form action=\"/\" method=\"POST\">"
-    "<button type=\"submit\" name=\"verified\" value=\"true\">Looks Good!</button>"
-  "</form>"
-"</html>";
-
 bool setupComplete;
 int setupPhase = 0;
 
@@ -80,6 +30,57 @@ char* stringToCharPointer(String str) {
   else
     return "";
 }
+
+//something in here is causing the exception
+void connectToNetwork() {
+  Serial.println("preparing to connect to network");
+
+  // *** connect to actual wifi network - often hits an exception around here
+  
+  char* ssidPointer = (char*) malloc( (ssid.length()+1) * sizeof(char) );
+  for (int i = 0; i < ssid.length(); i++)
+    ssidPointer[i] = ssid.charAt(i);
+  ssidPointer[ssid.length()] = '\0';
+  const char* constSSIDPointer = ssidPointer;
+
+  char* passwordPointer = (char*) malloc( (ssid.length()+1) * sizeof(char) );
+  for (int i = 0; i < password.length(); i++)
+    passwordPointer[i] = password.charAt(i);
+  passwordPointer[password.length()] = '\0';
+  const char* constPasswordPointer = passwordPointer;
+
+  Serial.println(constSSIDPointer);
+  Serial.println(constPasswordPointer);
+  
+  //set wifi mode to station
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(constSSIDPointer, constPasswordPointer);
+  //WiFi.begin("HOME-9752", "10CA73445024EA82");
+
+  free(ssidPointer);
+  free(passwordPointer);
+
+  long startConnectionTime = millis();
+  while (WiFi.status() != WL_CONNECTED && millis()-startConnectionTime < 15000) {
+    // *** Alternate between yellow and orange LED lighting
+    delay(250);
+    //Serial.println("working...");
+    Serial.println(millis()-startConnectionTime);
+  }
+
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("Failure");
+    // *** turn LED red
+    delay(3000);
+    ESP.restart();
+    return;
+  }
+
+  Serial.println("Connected to Wi-Fi.");
+}
+
+int numNetworksFound;
+String* networksPointer;
 
 void setup() {
 
@@ -102,7 +103,7 @@ void setup() {
     delay(100);
   
     //number of nearby wifi networks
-    int numNetworksFound = WiFi.scanNetworks();
+    numNetworksFound = WiFi.scanNetworks();
     //array to hold the name of each network that was found
     String networks[numNetworksFound];
   
@@ -112,6 +113,8 @@ void setup() {
       networks[i] = WiFi.SSID(i);
       
     }
+
+    networksPointer = &networks[0];
   
     //set wifi as an access point
     WiFi.mode(WIFI_AP);
@@ -119,11 +122,6 @@ void setup() {
     WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
     //name the network
     WiFi.softAP("Cube-Setup");
-  
-    /*//when the default url is accessed
-    server.on("/", HTTP_GET, []() {
-      
-    });*/
 
     server.on("/", []() {
       if (server.method() == HTTP_POST) {
@@ -134,10 +132,16 @@ void setup() {
         const String ver = "verified";
         if (server.argName(0) == sNum) {
           serialNumber = server.arg(0);
-          html = SSID_HTML;
-        } else if (server.argName(0) == ssID) {
+          //html = SSID_HTML;
+          html = SSID_MENU_HTML_1;
+          for (int i = 0; i < numNetworksFound; i++)
+            //html += String("<a href=\"/\">"+networksPointer[i]+"</a>");
+            // *** fix this html stuff
+            html += String("<button name=\"ssid\" type=\"submit\" value=" + networksPointer[i] + ">other network</button>");
+          html += String(SSID_MENU_HTML_2);
+        } else if (server.argName(0) == ssID) { 
           ssid = server.arg(0);
-          html = PASSWORD_HTML;
+          html = PASSWORD_HTML; // *** change this to be a list of available networks and create an option for "other"
         } else if (server.argName(0) == pass) {
           //Serial.println(server.arg(0));
           password = server.arg(0);
@@ -161,48 +165,10 @@ void setup() {
       }
     });
 
-    // *** try keeping to use on one webpage to avoid the url changing (implement a state variable to determine what html to send and how to process the response)
-    // *** combine the methods for each url into one method that checks to see whether or not POST was used
-    //when the /ssid url is accessed and GET (normal url) is used
-    /*server.on("/ssid", HTTP_GET, []() {
-      Serial.println(server.method());
-      server.send(200, "text/html", SSID_HTML);
-    });*/
-  
     //when the /ssid url is accessed and POST is used to transfer data
-    /*server.on("/ssid", HTTP_POST, []() {
-      Serial.println(server.method());
-      //Serial.println( server.uri() );
-      serialNumber = server.arg("serialnumber");
-      Serial.println( String("serial number: "+serialNumber) );
-      //normal html response
-      server.send(200, "text/html", SSID_HTML);
-    });*/
-
     //when the /password url is accessed and GET (normal url) is used
-    /*server.on("/password", HTTP_GET, []() {
-      Serial.println(server.method());
-      server.send(200, "text/html", PASSWORD_HTML);
-    });*/
-  
     //when the /password url is accessed and POST is used to transfer data
-    /*server.on("/password", HTTP_POST, []() {
-      Serial.println(server.method());
-      ssid = server.arg("ssid");
-      Serial.println( String("ssid: "+ssid) );
-      //normal html response
-      server.send(200, "text/html", PASSWORD_HTML);
-    });*/
-
     //when the /verify url is accessed and POST is used to transfer data
-    /*server.on("/verify", HTTP_POST, []() {
-      Serial.println(server.method());
-      password = server.arg("password");
-      Serial.println( String("password: "+password) );
-      //normal html response
-      server.send(200, "text/html", "verify the information before proceeding");
-    });*/
-
     // *** after verification, display a 6 digit code which will be used to verify the device from the website
 
     //when the url is not found
@@ -221,6 +187,8 @@ void setup() {
       server.handleClient();
 
       // *** Alternate between red and blue LED lighting
+
+      
       
     }
 
@@ -229,63 +197,45 @@ void setup() {
     //disconnect
     WiFi.disconnect();
 
+    connectToNetwork();
+
+    // *** connect to server to send serial number
+
+
+    
+
+  } else {
+
+    connectToNetwork();
+    
   }
 
-  Serial.println("preparing to connect to network");
-
-  // *** connect to actual wifi network - often hits an exception around here
   
-  //const char* ssidChar = stringToCharPointer(ssid);
-  //const char* passChar = stringToCharPointer(password);
-  //char* ssidChar;// = &ssid.toCharArray();
-  //ssid.toCharArray(ssidChar, ssid.length()+1);
-  //char* passChar;// = &password.toCharArray();
-  //password.toCharArray(passChar, password.length()+1);
-  /*char ssidArray[ssid.length()+1];
-  for (int i = 0; i < ssid.length(); i++)
-    ssidArray[i] = ssid.charAt(i);
-  ssidArray[ssid.length()] = '\0';
-  //char* ssidPointer = &ssidArray;*/
-  char* ssidPointer = (char*) malloc( (ssid.length()+1) * sizeof(char) );
-  for (int i = 0; i < ssid.length(); i++)
-    ssidPointer[i] = ssid.charAt(i);
-  ssidPointer[ssid.length()] = '\0';
-  const char* constSSIDPointer = ssidPointer;
-
-  char* passwordPointer = (char*) malloc( (ssid.length()+1) * sizeof(char) );
-  for (int i = 0; i < password.length(); i++)
-    passwordPointer[i] = password.charAt(i);
-  passwordPointer[password.length()] = '\0';
-  const char* constPasswordPointer = passwordPointer;
-
-  //Serial.println(constSSIDPointer);
-  //Serial.println(constPasswordPointer);
-  
-  //set wifi mode to station
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(constSSIDPointer, constPasswordPointer);
-
-  free(ssidPointer);
-  free(passwordPointer);
-
-  long startConnectionTime = millis();
-  while (WiFi.status() != WL_CONNECTED /*&& millis()-startConnectionTime < 15000*/) {
-    // *** Alternate between yellow and orange LED lighting
-    delay(250);
-    Serial.println("working...");
-  }
-
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("Failure");
-    // *** turn LED red
-    return;
-  }
-
-  Serial.println("Connected to Wi-Fi.");
-  
-  // *** connect to server to send serial number
-  
-
 }
 
-void loop() {}
+void loop() {
+
+    WiFiClient client;
+    if (!client.connect("wifitest.adafruit.com", 80)) {
+      Serial.println("Connection failed!");
+    }
+
+    Serial.println("getting html");
+    client.print(String("GET /testwifi/index.html HTTP/1.1\r\n")+String("Host: wifitest.adafruit.com\r\n")+String("Connection: close\r\n\r\n"));
+
+    Serial.println("reading response");
+    /*while (client.available()) {
+      Serial.print(client.readStringUntil('\r'));
+    }*/
+    while (client.connected()) {
+      if (client.available()) {
+        Serial.print(client.readStringUntil('\r'));
+      }
+    }
+    Serial.println();
+    Serial.println("done reading response");
+    delay(2000);
+
+  // *** check server to see if output needs to change
+  
+}
