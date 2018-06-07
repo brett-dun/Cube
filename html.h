@@ -6,7 +6,7 @@ const char DEFAULT_HTML[] = R"=====(
 <!DOCTYPE html>
 <html>
   <form action="/" method="POST">
-    <input type="number" name="serialnumber" id="serialnumber" maxlength="16">
+    <input required type="number" name="serialnumber" id="serialnumber" pattern=".{16,16}">
     <label for="serialnumber">Serial Number</label>
     <br>
     <input type="submit" value="Submit">
@@ -36,7 +36,7 @@ const char SSID_MENU_HTML_1[] = R"=====(
         margin: 0px auto;
         text-align: center;
       }
-      .button {
+      button {
         background-color: #195B6A;
         border: none;
         color: white;
@@ -45,6 +45,7 @@ const char SSID_MENU_HTML_1[] = R"=====(
         font-size: 30px;
         margin: 2px;
         cursor: pointer;
+        width: 100%;
       }
       .button2 {
         background-color: #77878A;
@@ -64,7 +65,7 @@ const char SSID_MENU_HTML_1[] = R"=====(
         position: relative;
         display: inline-block;
       }
-      .dropdownContent {
+      .dropdown-content {
         display: none;
         position: absolute;
         background-color: #f1f1f1;
@@ -72,13 +73,13 @@ const char SSID_MENU_HTML_1[] = R"=====(
         box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
         z-index: 1;
       }
-      .dropdownContent a {
+      .dropdown-content a {
         color: black;
         padding: 12px 16px;
         text-decoration: none;
         display: block;
       }
-      .dropdownContent a:hover {
+      .dropdown-content a:hover {
         background-color: #ddd
       }
       .show {
@@ -88,9 +89,10 @@ const char SSID_MENU_HTML_1[] = R"=====(
     <script>
       function myFunction() {
         document.getElementById("myDropdown").classList.toggle("show");
+        console.log("toggled");
       }
       window.onclick = function(event) {
-        if (!event.target.matches('dropButton')) {
+        if (!event.target.matches('.dropButton')) {
           var dropdowns = document.getElementsByClassName("dropdown-content");
           for (var i = 0; i < dropdowns.length; i++) {
             var openDropdown = dropdowns[i];
@@ -103,8 +105,9 @@ const char SSID_MENU_HTML_1[] = R"=====(
     </script>
   </head>
   <body>
+    <form action="/" method="POST">
     <div class="dropdown">
-      <button onclick="myFunction()" class="dropButton">Select a Network</button>
+      <button type="button" onclick="myFunction()" class="dropButton">Select a Network</button>
       <div id="myDropdown" class="dropdown-content">
 )=====";
 
@@ -112,6 +115,7 @@ const char SSID_MENU_HTML_2[] = R"=====(
         <button name="ssid" type="submit" value="other">other network</button>
       </div>
     </div>
+    </form>
   </body>
 </html>
 )=====";
